@@ -22,7 +22,7 @@ from rtmidi.midiutil import open_midiinput
 from pyzabbix import ZabbixMetric, ZabbixSender
 from math import fsum
 
-zabbix_enabled = False
+zabbix_enabled = True
 
 current_cue = None
 cue_updated = False
@@ -107,7 +107,7 @@ def interpret_go(hex_cue):
 
 
 log = logging.getLogger('midiin_poll')
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 
 # Prompts user for MIDI input port, unless a valid port number or name
 # is given as the first argument on the command line.
@@ -139,7 +139,10 @@ try:
                 ]
 
                 if zabbix_enabled:
-                    result = ZabbixSender(zabbix_server='192.168.0.116').send(packet)
+                    try:
+                        result = ZabbixSender(zabbix_server='192.168.0.116', timeout = 1).send(packet)
+                    except TimeoutError:
+                        logging.error("Zabbix timed out")
 
         time.sleep(0.01)
 except KeyboardInterrupt:
