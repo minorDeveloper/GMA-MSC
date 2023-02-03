@@ -83,7 +83,15 @@ def remove_first_char(lst):
     char_lst = lst
 
     for idx, x in enumerate(lst):
-        char_lst[idx] = list(x)[1:][0]
+        lst_x = list(x)
+        if len(lst_x) == 1: 
+            char_lst[idx] = lst_x[0]
+
+        try:
+            char_lst[idx] = lst_x[1:][0]
+        except IndexError:
+            logger.error("Index Error in remove_first_char")
+
 
     return char_lst
 
