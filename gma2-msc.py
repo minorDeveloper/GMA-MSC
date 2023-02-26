@@ -246,6 +246,9 @@ logger.addHandler(log_console_handler)
 
 logger.info("Entering program")
 
+write_config(False)
+read_config()
+
 
 # Prompts user for MIDI input port, unless a valid port number or name
 # is given as the first argument on the command line.
