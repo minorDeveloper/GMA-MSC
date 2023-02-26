@@ -10,17 +10,23 @@
 # sudo pip install --pre python-rtmidi
 # sudo ln -s /usr/lib/libportmidi.so.0 /usr/lib/libportmidi.so
 
+## Horrible things may happen with libasound2. Might have to fudge with your main libasound and libasound-data versions to make this work
+
+
 # TODO:
 # Logging
 # Validate input
 # Github
 # Instructions at top
 # Send logfiles to Zabbix
+# Lots more safety everywhere
 
 from __future__ import print_function
 
 import logging
 from logging.handlers import TimedRotatingFileHandler
+
+import configparser
 
 import sys
 import time
@@ -142,6 +148,7 @@ def interpret_go(hex_cue):
     except ValueError:
         return
 
+    # TODO more safety here
     
     # Remove the 3 from each string, 
     whole_part = list_to_num(list(map(int, remove_first_char(hex_cue[:decimal_index]))), False)
@@ -178,8 +185,49 @@ class JSONServer(BaseHTTPRequestHandler):
         self.wfile.write(bytes(get_json(), "utf-8"))
 
 
+def write_config(overwrite):
+    config_exists = exists("./config.ini")
+    if overwrite == False and config_exists == True:
+        logger.info("Not overwriting config file")
+        return
+    
+    config['webpage'] = {}
+    config['webpage']['host_ip'] = webpage_host_ip
+    config['webpage']['port'] = webpage_port
+    config['webpage']['enabled'] = webserver_enabled
 
-log_file_handler = TimedRotatingFileHandler(filename='runtime.log', when='D', interval=1, backupCount=10,
+    config['zabbix'] = {}
+    config['zabbix']['ip'] = zabbix_ip
+    config['zabbix']['enabled'] = zabbix_enabled
+
+    with open("./config.ini", "w") as config_file:
+        config.write(config_file)
+
+        
+    logger.info("Config written to file")
+
+def read_config():
+    global webpage_host_ip, webpage_port, zabbix_enabled, webserver_enabled, zabbix_enabled, zabbix_ip
+    config_exists = exists("./config.ini")
+    if not config_exists:
+        logger.warning("Config file not available to read from")
+    
+    config = configparser.ConfigParser()
+    config.read('./config.ini')
+    
+    webpage_host_ip = config['webpage']['host_ip']
+    webpage_port = int(config['webpage']['port'])
+    webserver_enabled = config['webpage'].getboolean('enabled')
+
+    zabbix_ip = config['zabbix']['ip']
+    zabbix_enabled = config['zabbix'].getboolean('enabled')
+
+    logger.info("Config loaded successfully")
+
+
+config = configparser.ConfigParser()
+
+log_file_handler = TimedRotatingFileHandler(filename='./runtime.log', when='D', interval=1, backupCount=10,
                                         encoding='utf-8',
                                         delay=False)
 
