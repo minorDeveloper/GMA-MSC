@@ -32,18 +32,31 @@ from pyzabbix import ZabbixMetric, ZabbixSender
 from math import fsum
 
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from os.path import exists
 
 import threading
 
+
+
+def remove_prefix(input_string, prefix):
+    if prefix and input_string.startswith(prefix):
+        return input_string[len(prefix):]
+    return input_string
+
+config = configparser.ConfigParser()
 logger = logging.getLogger('gma2-msc')
 
-webpage_host_ip: str = "192.168.0.121"
+# Config variables
+
+webpage_host_ip: str = "192.168.0.116"
 webpage_port: int = 8081
+webserver_enabled = True
 
-lock = threading.RLock()
-
+zabbix_ip = "192.168.0.116"
 zabbix_enabled = True
 
+
+lock = threading.RLock()
 current_cue = None
 cue_updated = False
 
@@ -51,7 +64,8 @@ def list_to_hex(integer_list):
     hex_list = integer_list
 
     for idx, x in enumerate(integer_list):
-        hex_list[idx] = hex(int(x)).removeprefix('0x')
+        hex_list[idx] = remove_prefix(hex(int(x)), '0x')
+        #hex_list[idx] = hex(int(x)).removeprefix('0x')
 
     return hex_list
 
@@ -60,7 +74,7 @@ def interpret_hex(hex_data):
     # ['f0', '7f', '0', '2', '1', '1', '30', '2e', '33', '35', '30', 'f7']
     # ['f0', '7f', '0', '2', '1', '4', '0', '0', '0', '0', '0', '30', '2e', '33', '31', '30', 'f7']
 
-    if len(hex_data) < 12: return
+    if len(hex_data) < 12 or len(hex_data) > 17: return
 
     try:
         command_type = int(hex_data[5])
@@ -71,10 +85,18 @@ def interpret_hex(hex_data):
 
     if command_type == 1:
         # GO
+        if len(hex_data) > 14:
+            logger.warning("Invalid length of GO")
+            return
+
         interpret_go(hex_data[6:-1])
+
     elif command_type == 4: 
         # Timed GO
-        if len(hex_data) < 17: return
+        if len(hex_data) > 18: 
+            logger.warning("Invalid length of TIMED GO")
+            return
+
         interpret_go(hex_data[11:-1])
 
 
