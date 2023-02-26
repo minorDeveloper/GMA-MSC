@@ -10,17 +10,23 @@
 # sudo pip install --pre python-rtmidi
 # sudo ln -s /usr/lib/libportmidi.so.0 /usr/lib/libportmidi.so
 
+## Horrible things may happen with libasound2. Might have to fudge with your main libasound and libasound-data versions to make this work
+
+
 # TODO:
 # Logging
 # Validate input
 # Github
 # Instructions at top
 # Send logfiles to Zabbix
+# Lots more safety everywhere
 
 from __future__ import print_function
 
 import logging
 from logging.handlers import TimedRotatingFileHandler
+
+import configparser
 
 import sys
 import time
@@ -32,18 +38,31 @@ from pyzabbix import ZabbixMetric, ZabbixSender
 from math import fsum
 
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from os.path import exists
 
 import threading
 
+
+
+def remove_prefix(input_string, prefix):
+    if prefix and input_string.startswith(prefix):
+        return input_string[len(prefix):]
+    return input_string
+
+config = configparser.ConfigParser()
 logger = logging.getLogger('gma2-msc')
 
-webpage_host_ip: str = "192.168.0.121"
+# Config variables
+
+webpage_host_ip: str = "192.168.0.116"
 webpage_port: int = 8081
+webserver_enabled = True
 
-lock = threading.RLock()
-
+zabbix_ip = "192.168.0.116"
 zabbix_enabled = True
 
+
+lock = threading.RLock()
 current_cue = None
 cue_updated = False
 
@@ -51,7 +70,8 @@ def list_to_hex(integer_list):
     hex_list = integer_list
 
     for idx, x in enumerate(integer_list):
-        hex_list[idx] = hex(int(x)).removeprefix('0x')
+        hex_list[idx] = remove_prefix(hex(int(x)), '0x')
+        #hex_list[idx] = hex(int(x)).removeprefix('0x')
 
     return hex_list
 
@@ -60,7 +80,7 @@ def interpret_hex(hex_data):
     # ['f0', '7f', '0', '2', '1', '1', '30', '2e', '33', '35', '30', 'f7']
     # ['f0', '7f', '0', '2', '1', '4', '0', '0', '0', '0', '0', '30', '2e', '33', '31', '30', 'f7']
 
-    if len(hex_data) < 12: return
+    if len(hex_data) < 12 or len(hex_data) > 17: return
 
     try:
         command_type = int(hex_data[5])
@@ -71,10 +91,18 @@ def interpret_hex(hex_data):
 
     if command_type == 1:
         # GO
+        if len(hex_data) > 14:
+            logger.warning("Invalid length of GO")
+            return
+
         interpret_go(hex_data[6:-1])
+
     elif command_type == 4: 
         # Timed GO
-        if len(hex_data) < 17: return
+        if len(hex_data) > 18: 
+            logger.warning("Invalid length of TIMED GO")
+            return
+
         interpret_go(hex_data[11:-1])
 
 
@@ -83,7 +111,15 @@ def remove_first_char(lst):
     char_lst = lst
 
     for idx, x in enumerate(lst):
-        char_lst[idx] = list(x)[1:][0]
+        lst_x = list(x)
+        if len(lst_x) == 1: 
+            char_lst[idx] = lst_x[0]
+
+        try:
+            char_lst[idx] = lst_x[1:][0]
+        except IndexError:
+            logger.error("Index Error in remove_first_char")
+
 
     return char_lst
 
@@ -112,6 +148,7 @@ def interpret_go(hex_cue):
     except ValueError:
         return
 
+    # TODO more safety here
     
     # Remove the 3 from each string, 
     whole_part = list_to_num(list(map(int, remove_first_char(hex_cue[:decimal_index]))), False)
@@ -148,8 +185,49 @@ class JSONServer(BaseHTTPRequestHandler):
         self.wfile.write(bytes(get_json(), "utf-8"))
 
 
+def write_config(overwrite):
+    config_exists = exists("./config.ini")
+    if overwrite == False and config_exists == True:
+        logger.info("Not overwriting config file")
+        return
+    
+    config['webpage'] = {}
+    config['webpage']['host_ip'] = webpage_host_ip
+    config['webpage']['port'] = webpage_port
+    config['webpage']['enabled'] = webserver_enabled
 
-log_file_handler = TimedRotatingFileHandler(filename='runtime.log', when='D', interval=1, backupCount=10,
+    config['zabbix'] = {}
+    config['zabbix']['ip'] = zabbix_ip
+    config['zabbix']['enabled'] = zabbix_enabled
+
+    with open("./config.ini", "w") as config_file:
+        config.write(config_file)
+
+        
+    logger.info("Config written to file")
+
+def read_config():
+    global webpage_host_ip, webpage_port, zabbix_enabled, webserver_enabled, zabbix_enabled, zabbix_ip
+    config_exists = exists("./config.ini")
+    if not config_exists:
+        logger.warning("Config file not available to read from")
+    
+    config = configparser.ConfigParser()
+    config.read('./config.ini')
+    
+    webpage_host_ip = config['webpage']['host_ip']
+    webpage_port = int(config['webpage']['port'])
+    webserver_enabled = config['webpage'].getboolean('enabled')
+
+    zabbix_ip = config['zabbix']['ip']
+    zabbix_enabled = config['zabbix'].getboolean('enabled')
+
+    logger.info("Config loaded successfully")
+
+
+config = configparser.ConfigParser()
+
+log_file_handler = TimedRotatingFileHandler(filename='./runtime.log', when='D', interval=1, backupCount=10,
                                         encoding='utf-8',
                                         delay=False)
 
@@ -181,10 +259,11 @@ except (EOFError, KeyboardInterrupt):
 
 midiin.ignore_types(sysex=False, timing=False, active_sense=False)
 
-webServer = HTTPServer((webpage_host_ip, webpage_port), JSONServer)
-logger.info("Server started http://%s:%s" % (webpage_host_ip, webpage_port))
+if webserver_enabled:
+    webServer = HTTPServer((webpage_host_ip, webpage_port), JSONServer)
+    logger.info("Server started http://%s:%s" % (webpage_host_ip, webpage_port))
 
-t = threading.Thread(target=start_web_server, args=(webServer,)).start()
+    t = threading.Thread(target=start_web_server, args=(webServer,)).start()
 
 logger.info("Entering main loop. Press Control-C to exit.")
 try:
@@ -207,7 +286,7 @@ try:
 
                 if zabbix_enabled:
                     try:
-                        result = ZabbixSender(zabbix_server='192.168.0.116', timeout = 1).send(packet)
+                        result = ZabbixSender(zabbix_server=zabbix_ip, timeout = 1).send(packet)
                     except TimeoutError:
                         logger.error("Zabbix timed out")
 
