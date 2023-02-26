@@ -238,7 +238,7 @@ try:
 
                 if zabbix_enabled:
                     try:
-                        result = ZabbixSender(zabbix_server='192.168.0.116', timeout = 1).send(packet)
+                        result = ZabbixSender(zabbix_server=zabbix_ip, timeout = 1).send(packet)
                     except TimeoutError:
                         logger.error("Zabbix timed out")
 
