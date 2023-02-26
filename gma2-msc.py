@@ -211,10 +211,11 @@ except (EOFError, KeyboardInterrupt):
 
 midiin.ignore_types(sysex=False, timing=False, active_sense=False)
 
-webServer = HTTPServer((webpage_host_ip, webpage_port), JSONServer)
-logger.info("Server started http://%s:%s" % (webpage_host_ip, webpage_port))
+if webserver_enabled:
+    webServer = HTTPServer((webpage_host_ip, webpage_port), JSONServer)
+    logger.info("Server started http://%s:%s" % (webpage_host_ip, webpage_port))
 
-t = threading.Thread(target=start_web_server, args=(webServer,)).start()
+    t = threading.Thread(target=start_web_server, args=(webServer,)).start()
 
 logger.info("Entering main loop. Press Control-C to exit.")
 try:
