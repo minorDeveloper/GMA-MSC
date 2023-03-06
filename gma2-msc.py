@@ -80,7 +80,12 @@ def interpret_hex(hex_data):
     # ['f0', '7f', '0', '2', '1', '1', '30', '2e', '33', '35', '30', 'f7']
     # ['f0', '7f', '0', '2', '1', '4', '0', '0', '0', '0', '0', '30', '2e', '33', '31', '30', 'f7']
 
-    if len(hex_data) < 12 or len(hex_data) > 17: return
+    len_hex = len(hex_data)
+
+    if len_hex < 8 or len_hex > 18: return
+
+    # Bytestrings must be terminated with f7
+    if hex_data[-1] != 'f7' or hex_data[0] != 'f0' or hex_data[1] != '7f': return
 
     try:
         command_type = int(hex_data[5])
@@ -91,7 +96,7 @@ def interpret_hex(hex_data):
 
     if command_type == 1:
         # GO
-        if len(hex_data) > 14:
+        if len_hex < 12 or len_hex > 15:
             logger.warning("Invalid length of GO")
             return
 
@@ -99,7 +104,7 @@ def interpret_hex(hex_data):
 
     elif command_type == 4: 
         # Timed GO
-        if len(hex_data) > 18: 
+        if len_hex < 12 or len(hex_data) > 19: 
             logger.warning("Invalid length of TIMED GO")
             return
 
