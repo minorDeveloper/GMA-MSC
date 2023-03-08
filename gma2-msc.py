@@ -198,12 +198,12 @@ def write_config(overwrite):
     
     config['webpage'] = {}
     config['webpage']['host_ip'] = webpage_host_ip
-    config['webpage']['port'] = webpage_port
-    config['webpage']['enabled'] = webserver_enabled
+    config['webpage']['port'] = str(webpage_port)
+    config['webpage']['enabled'] = str(webserver_enabled)
 
     config['zabbix'] = {}
     config['zabbix']['ip'] = zabbix_ip
-    config['zabbix']['enabled'] = zabbix_enabled
+    config['zabbix']['enabled'] = str(zabbix_enabled)
 
     with open("./config.ini", "w") as config_file:
         config.write(config_file)
