@@ -31,6 +31,7 @@ import configparser
 import sys
 import time
 import json
+import os
 
 from rtmidi.midiutil import open_midiinput
 
@@ -65,6 +66,8 @@ zabbix_enabled = True
 lock = threading.RLock()
 current_cue = None
 cue_updated = False
+
+configPath = filename=os.path.join(sys.path[0], "config.ini")
 
 def list_to_hex(integer_list):
     hex_list = integer_list
@@ -191,7 +194,7 @@ class JSONServer(BaseHTTPRequestHandler):
 
 
 def write_config(overwrite):
-    config_exists = exists("./config.ini")
+    config_exists = exists(configPath)
     if overwrite == False and config_exists == True:
         logger.info("Not overwriting config file")
         return
@@ -205,7 +208,7 @@ def write_config(overwrite):
     config['zabbix']['ip'] = zabbix_ip
     config['zabbix']['enabled'] = str(zabbix_enabled)
 
-    with open("./config.ini", "w") as config_file:
+    with open(configPath, "w") as config_file:
         config.write(config_file)
 
         
@@ -213,12 +216,12 @@ def write_config(overwrite):
 
 def read_config():
     global webpage_host_ip, webpage_port, zabbix_enabled, webserver_enabled, zabbix_enabled, zabbix_ip
-    config_exists = exists("./config.ini")
+    config_exists = exists(configPath)
     if not config_exists:
         logger.warning("Config file not available to read from")
     
     config = configparser.ConfigParser()
-    config.read('./config.ini')
+    config.read(configPath)
     
     webpage_host_ip = config['webpage']['host_ip']
     webpage_port = int(config['webpage']['port'])
@@ -232,7 +235,7 @@ def read_config():
 
 config = configparser.ConfigParser()
 
-log_file_handler = TimedRotatingFileHandler(filename='./runtime.log', when='D', interval=1, backupCount=10,
+log_file_handler = TimedRotatingFileHandler(filename=os.path.join(sys.path[0], "runtime.log"), when='D', interval=1, backupCount=10,
                                         encoding='utf-8',
                                         delay=False)
 
