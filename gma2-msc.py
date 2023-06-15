@@ -12,6 +12,8 @@
 
 ## Horrible things may happen with libasound2. Might have to fudge with your main libasound and libasound-data versions to make this work
 
+# GrandMA2 MSC Documentations:
+# https://help2.malighting.com/Page/grandMA2/remote_control_msc/en/3.3
 
 # TODO:
 # Logging
@@ -44,6 +46,7 @@ from os.path import exists
 import threading
 
 
+from GMA2 import GMA2
 
 def remove_prefix(input_string, prefix):
     if prefix and input_string.startswith(prefix):
@@ -68,6 +71,32 @@ current_cue = None
 cue_updated = False
 
 configPath = filename=os.path.join(sys.path[0], "config.ini")
+
+
+def interpret_go(hex_cue):
+    global current_cue, cue_updated
+    # Example intput 
+    # ['32', '30', '2e', '33', '35', '30'] -> 20.350
+    
+    # Split about 2e (decimal point)
+    try:
+        decimal_index = hex_cue.index('2e')
+    except ValueError:
+        return
+
+    # TODO more safety here
+    
+    # Remove the 3 from each string, 
+    whole_part = list_to_num(list(map(int, remove_first_char(hex_cue[:decimal_index]))), False)
+    decimal_part = list_to_num(list(map(int, remove_first_char(hex_cue[decimal_index+1:]))), True)
+    combined = whole_part + decimal_part
+
+    if combined == None: return
+    if current_cue == combined: return
+    
+    with lock:
+        current_cue = combined
+        cue_updated = True
 
 def list_to_hex(integer_list):
     hex_list = integer_list
@@ -144,31 +173,6 @@ def list_to_num(lst, decimal):
 
     return num
 
-
-def interpret_go(hex_cue):
-    global current_cue, cue_updated
-    # Example intput 
-    # ['32', '30', '2e', '33', '35', '30'] -> 20.350
-    
-    # Split about 2e (decimal point)
-    try:
-        decimal_index = hex_cue.index('2e')
-    except ValueError:
-        return
-
-    # TODO more safety here
-    
-    # Remove the 3 from each string, 
-    whole_part = list_to_num(list(map(int, remove_first_char(hex_cue[:decimal_index]))), False)
-    decimal_part = list_to_num(list(map(int, remove_first_char(hex_cue[decimal_index+1:]))), True)
-    combined = whole_part + decimal_part
-
-    if combined == None: return
-    if current_cue == combined: return
-    
-    with lock:
-        current_cue = combined
-        cue_updated = True
 
 def get_json():
     with lock:
