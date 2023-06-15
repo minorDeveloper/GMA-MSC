@@ -60,7 +60,7 @@ logger = logging.getLogger('gma2-msc')
 
 webpage_host_ip: str = "192.168.0.116"
 webpage_port: int = 8081
-webserver_enabled = True
+webserver_enabled = False
 
 zabbix_ip = "192.168.0.116"
 zabbix_enabled = True
@@ -71,108 +71,6 @@ current_cue = None
 cue_updated = False
 
 configPath = filename=os.path.join(sys.path[0], "config.ini")
-
-
-def interpret_go(hex_cue):
-    global current_cue, cue_updated
-    # Example intput 
-    # ['32', '30', '2e', '33', '35', '30'] -> 20.350
-    
-    # Split about 2e (decimal point)
-    try:
-        decimal_index = hex_cue.index('2e')
-    except ValueError:
-        return
-
-    # TODO more safety here
-    
-    # Remove the 3 from each string, 
-    whole_part = list_to_num(list(map(int, remove_first_char(hex_cue[:decimal_index]))), False)
-    decimal_part = list_to_num(list(map(int, remove_first_char(hex_cue[decimal_index+1:]))), True)
-    combined = whole_part + decimal_part
-
-    if combined == None: return
-    if current_cue == combined: return
-    
-    with lock:
-        current_cue = combined
-        cue_updated = True
-
-def list_to_hex(integer_list):
-    hex_list = integer_list
-
-    for idx, x in enumerate(integer_list):
-        hex_list[idx] = remove_prefix(hex(int(x)), '0x')
-        #hex_list[idx] = hex(int(x)).removeprefix('0x')
-
-    return hex_list
-
-def interpret_hex(hex_data):
-    # Example input
-    # ['f0', '7f', '0', '2', '1', '1', '30', '2e', '33', '35', '30', 'f7']
-    # ['f0', '7f', '0', '2', '1', '4', '0', '0', '0', '0', '0', '30', '2e', '33', '31', '30', 'f7']
-
-    len_hex = len(hex_data)
-
-    if len_hex < 8 or len_hex > 18: return
-
-    # Bytestrings must be terminated with f7
-    if hex_data[-1] != 'f7' or hex_data[0] != 'f0' or hex_data[1] != '7f': return
-
-    try:
-        command_type = int(hex_data[5])
-    except:
-        print("FAILED")
-        return
-
-
-    if command_type == 1:
-        # GO
-        if len_hex < 12 or len_hex > 15:
-            logger.warning("Invalid length of GO")
-            return
-
-        interpret_go(hex_data[6:-1])
-
-    elif command_type == 4: 
-        # Timed GO
-        if len_hex < 12 or len(hex_data) > 19: 
-            logger.warning("Invalid length of TIMED GO")
-            return
-
-        interpret_go(hex_data[11:-1])
-
-
-
-def remove_first_char(lst):
-    char_lst = lst
-
-    for idx, x in enumerate(lst):
-        lst_x = list(x)
-        if len(lst_x) == 1: 
-            char_lst[idx] = lst_x[0]
-
-        try:
-            char_lst[idx] = lst_x[1:][0]
-        except IndexError:
-            logger.error("Index Error in remove_first_char")
-
-
-    return char_lst
-
-def list_to_num(lst, decimal):
-    num = 0.0
-    if not decimal:
-        lst = reversed(lst)
-
-    for idx, x in enumerate(lst):
-        if decimal: idx = -(idx+1)
-        num += x * (10**idx)
-    
-    if decimal: num = round(num, 3)
-
-    return num
-
 
 def get_json():
     with lock:
@@ -274,6 +172,7 @@ except (EOFError, KeyboardInterrupt):
 
 midiin.ignore_types(sysex=False, timing=False, active_sense=False)
 
+webserver_enabled = False
 if webserver_enabled:
     webServer = HTTPServer((webpage_host_ip, webpage_port), JSONServer)
     logger.info("Server started http://%s:%s" % (webpage_host_ip, webpage_port))
@@ -281,6 +180,11 @@ if webserver_enabled:
     t = threading.Thread(target=start_web_server, args=(webServer,)).start()
 
 logger.info("Entering main loop. Press Control-C to exit.")
+
+gma2 = GMA2(logger)
+
+f = open("gmaTestData", "a")
+
 try:
     timer = time.time()
     while True:
@@ -289,21 +193,13 @@ try:
         if msg:
             message, deltatime = msg
             timer += deltatime
-            hex_message = list_to_hex(message)
-            logger.debug(hex_message)
-            interpret_hex(hex_message)
-            if current_cue != None and cue_updated == True:
-                logger.info(current_cue)
+            f.write(str(message)+"\n")
+            
+            
+            #gma2.processHexArray(message)
 
-                packet = [
-                    ZabbixMetric('GMA Main', 'cue', current_cue),
-                ]
 
-                if zabbix_enabled:
-                    try:
-                        result = ZabbixSender(zabbix_server=zabbix_ip, timeout = 1).send(packet)
-                    except TimeoutError:
-                        logger.error("Zabbix timed out")
+            #logger.info(gma2.deviceState)
 
         time.sleep(0.01)
 except KeyboardInterrupt:
@@ -311,5 +207,20 @@ except KeyboardInterrupt:
 finally:
     print("Exit.")
     midiin.close_port()
+    f.close()
     
     del midiin
+
+
+# if current_cue != None and cue_updated == True:
+#     logger.info(current_cue)
+
+#     packet = [
+#         ZabbixMetric('GMA Main', 'cue', current_cue),
+#     ]
+
+#     if zabbix_enabled:
+#         try:
+#             result = ZabbixSender(zabbix_server=zabbix_ip, timeout = 1).send(packet)
+#         except TimeoutError:
+#             logger.error("Zabbix timed out")
