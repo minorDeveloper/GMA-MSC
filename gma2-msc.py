@@ -72,6 +72,17 @@ cue_updated = False
 
 configPath = filename=os.path.join(sys.path[0], "config.ini")
 
+def stringIntToIntHex(stringList):
+    for i in range(len(stringList)):
+        digit = int(stringList[i])
+        hexDigit = hex(digit)
+        hexString = str(hexDigit)
+        hexString = hexString.replace("0x","")
+        if len(hexString) < 2: 
+            hexString = "0" + hexString
+        stringList[i] = hexString
+
+
 def get_json():
     with lock:
         json_state = {
@@ -160,6 +171,48 @@ write_config(False)
 read_config()
 
 
+
+
+# Open file
+# f = open("gmaTestData", "r")
+
+# gma2 = GMA2(logger)
+
+# success = True
+
+# line = f.readline()
+# # Loop over lines in file
+# for line in f:
+#     line = line.replace('[','')
+#     line = line.replace(']','')
+#     line = line.replace(' ','')
+#     line = line.replace('\n','')
+#     gmaData = line.split(',')
+
+#     stringIntToIntHex(gmaData)
+    
+#     currentSuccess = gma2.processHexArray(gmaData)
+#     if not currentSuccess:
+#         logger.info(gmaData)
+#     success = currentSuccess and success 
+
+
+# logger.debug("All data processed: " + str(success))
+
+
+# logger.info(json.dumps(gma2.deviceState.serialise(), indent=2, default=str))
+# print("")
+# print("")
+
+
+
+# Convert to hex
+
+# Run through the gma2 system
+
+
+
+
 # Prompts user for MIDI input port, unless a valid port number or name
 # is given as the first argument on the command line.
 # API backend defaults to ALSA on Linux.
@@ -183,8 +236,6 @@ logger.info("Entering main loop. Press Control-C to exit.")
 
 gma2 = GMA2(logger)
 
-f = open("gmaTestData", "a")
-
 try:
     timer = time.time()
     while True:
@@ -193,13 +244,16 @@ try:
         if msg:
             message, deltatime = msg
             timer += deltatime
-            f.write(str(message)+"\n")
             
-            
-            #gma2.processHexArray(message)
+            print("Midi message")
 
+            gmaData = message
+            stringIntToIntHex(gmaData)
+            logger.info(gmaData)
 
-            #logger.info(gma2.deviceState)
+            if not (gma2.processHexArray(gmaData)):
+                logger.debug(gmaData)
+            logger.info(json.dumps(gma2.deviceState.serialise(), indent=4, default=str))
 
         time.sleep(0.01)
 except KeyboardInterrupt:
@@ -207,7 +261,6 @@ except KeyboardInterrupt:
 finally:
     print("Exit.")
     midiin.close_port()
-    f.close()
     
     del midiin
 

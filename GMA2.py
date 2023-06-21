@@ -1,27 +1,25 @@
 from enum import Enum
 from datetime import datetime
+import json
 
+from GMA2Executor import GMA2Executor
+from GMA2Executor import MSCCommand
+from GMA2State import GMA2State
 
 class MSCCommandFormat(Enum):
     GeneralLighting = 1
     MovingLights = 2
     All = 127
 
-class MSCCommand(Enum):
-    Invalid = 0
-    Go = 1
-    Stop = 2
-    Resume = 3
-    Timed_Go = 4
-    Set = 6
-    Fire = 7
-    Go_Off = 11
+
+
+
 
 class GMA2():
     ## Tested
     def __init__(self, logger):
         self.deviceID = '00'
-        self.deviceState = {}
+        self.deviceState = GMA2State()
         self.logger = logger
         pass
 
@@ -32,8 +30,11 @@ class GMA2():
 
         self.deviceID = hexArray[2]
         commandFormat = MSCCommandFormat(int(hexArray[4],16))
-        commandType = MSCCommand(int(hexArray[5],16))
-        data = hexArray[6:-2]
+        if int(hexArray[5],16) in MSCCommand._value2member_map_:
+            commandType = MSCCommand(int(hexArray[5],16))
+        else:
+            return False
+        data = hexArray[6:-1]
 
         return self.processData(commandType, data)
 
@@ -72,28 +73,66 @@ class GMA2():
             case MSCCommand.Go:
                 return self.processGo(data)
             case MSCCommand.Stop:
-                pass
+                self.logger.warn("Stop command - not implemented")
+                return
             case MSCCommand.Resume:
+                self.logger.warn("Resume command - not implemented")
                 pass
             case MSCCommand.Timed_Go:
+                self.logger.warn("Timed Go command - not implemented")
                 pass
             case MSCCommand.Set:
+                return self.processSet(data)
                 pass
             case MSCCommand.Fire:
+                self.logger.warn("Fire command - not implemented")
                 pass
             case MSCCommand.Go_Off:
+                self.logger.warn("Go Off command - not implemented")
                 pass
         
         return False
+    
+    def processSet(self, data):
+        if len(data) != 4: return False
+
+        fader = -1
+        page = int(data[1], 16)
+        executor = int(data[0], 16) + 1
+
+        coarse = int(data[3], 16)
+        fine = int(data[2], 16)
+
+        fader = (coarse + fine) / 128.0
+
+        gma2Executor = GMA2Executor(executor)
+        gma2Executor.fader = fader
+        gma2Executor.lastCommand = MSCCommand.Set
+        
+        self.deviceState.updateExecutor(page, gma2Executor)
+        
+
+        return True
+    
+    def processTimedGo(self, data):
+        return False
+
+        
+
+        return True
 
     def processGo(self, data):
         # Data will either be 6 or 10 octets long for a valid go
         # TODO check this assumption is valid
-        if (len(data) != 6) and (len(data) != 10): return False
+        if (len(data) != 9) and (len(data) != 11): return False
 
-        if len(data == 6): 
+        cue = -1
+        page = -1
+        executor = -1
+
+        if len(data) == 6: 
             cue = self.getCueNumber(data)
-            page, executor = ""
+            page, executor = "0"
         else:
             if (data.count('00') == 0): return False
             
@@ -103,9 +142,14 @@ class GMA2():
 
         if (page == -1 or executor == -1): return False
 
-        self.deviceState["pages"][str(page)][str(executor)]["currentCue"] = cue
-        self.deviceState["pages"][str(page)][str(executor)]["lastUpdate"] = datetime.now()
-
+        gma2Executor = GMA2Executor(executor)
+        gma2Executor.cue = cue
+        gma2Executor.lastCommand = MSCCommand.Go
+        
+        self.deviceState.updateExecutor(page, gma2Executor)
+        
+           # self.deviceState.update({str(page): {str(executor): {"currentCue": cue, "lastUpdate": datetime.now()}}})
+        
         return True
 
     def getCueNumber(self, cueData):
@@ -191,3 +235,5 @@ class GMA2():
             tempString += str(b)
 
         return tempString
+    
+    
