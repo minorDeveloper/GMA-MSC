@@ -1,4 +1,4 @@
-# Copyright samlane.tech 2022-2023
+# Copyright about-time.tech 2022-2024
 
 # Dependencies (pip packages)
 # py-zabbix > v1.1.7
@@ -170,49 +170,6 @@ logger.info("Entering program")
 write_config(False)
 read_config()
 
-
-
-
-# Open file
-# f = open("gmaTestData", "r")
-
-# gma2 = GMA2(logger)
-
-# success = True
-
-# line = f.readline()
-# # Loop over lines in file
-# for line in f:
-#     line = line.replace('[','')
-#     line = line.replace(']','')
-#     line = line.replace(' ','')
-#     line = line.replace('\n','')
-#     gmaData = line.split(',')
-
-#     stringIntToIntHex(gmaData)
-    
-#     currentSuccess = gma2.processHexArray(gmaData)
-#     if not currentSuccess:
-#         logger.info(gmaData)
-#     success = currentSuccess and success 
-
-
-# logger.debug("All data processed: " + str(success))
-
-
-# logger.info(json.dumps(gma2.deviceState.serialise(), indent=2, default=str))
-# print("")
-# print("")
-
-
-
-# Convert to hex
-
-# Run through the gma2 system
-
-
-
-
 # Prompts user for MIDI input port, unless a valid port number or name
 # is given as the first argument on the command line.
 # API backend defaults to ALSA on Linux.
@@ -263,17 +220,3 @@ finally:
     midiin.close_port()
     
     del midiin
-
-
-# if current_cue != None and cue_updated == True:
-#     logger.info(current_cue)
-
-#     packet = [
-#         ZabbixMetric('GMA Main', 'cue', current_cue),
-#     ]
-
-#     if zabbix_enabled:
-#         try:
-#             result = ZabbixSender(zabbix_server=zabbix_ip, timeout = 1).send(packet)
-#         except TimeoutError:
-#             logger.error("Zabbix timed out")
